@@ -5,37 +5,19 @@ var Work = require("./underTheHood");
 
 var work = new Work();
 
-var connection = mysql.createConnection({
-    host: "localhost",
-    port: 3306,
-    user: "root",
-    password: "root",
-    database: "bamazon"
-});
-
-connection.connect(function(err) {
-    if (err) throw err;
-    console.log("connected as id " + connection.threadId);
-    inquirer.prompt([{
-        name: "choice",
-        type: "list",
-        choices: ["create","read","update","delete"],
-        message: "what would you like to do?"
-    }]).then(function(choice){
-        choice = choice.choice;
-        switch(choice){
-            case choice = "create":
-                work.create();
-                break;
-            case choice = "read":
-                work.readAll("manager");
-                break;
-            case choice = "update":
-                work.update("manager");
-                break;
-            case choice = "delete":
-                work.del();
-                break;
-        }
-    })
-});
+inquirer.prompt([{
+    name: "choice",
+    type: "list",
+    choices: ["create","read"],
+    message: "what would you like to do?"
+}]).then(function(choice){
+    choice = choice.choice;
+    switch(choice){
+        case choice = "create":
+            work.create();
+            break;
+        case choice = "read":
+            work.readAll("manager");
+            break;
+    }
+})

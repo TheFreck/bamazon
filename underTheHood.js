@@ -16,7 +16,6 @@ var connection = mysql.createConnection({
 });
 connection.connect(function(err) {
     if (err) throw err;
-    console.log("connected as id " + connection.threadId);
 
 });
 Work.prototype.create = function(){
@@ -145,23 +144,23 @@ Work.prototype.readAll = function(credentials){
                         inquirer.prompt([{
                             name: "option",
                             type: "list",
-                            choices: ["price","quantity"],
+                            choices: ["price","quantity","delete"],
                             message: "what would you like to update?"
                         }]).then(function(option){
-                            console.log("break 1 ",option);
                             var option = option.option;
                             var whichOne = {};
                             switch(option){
                                 case option = "price":
-                                    console.log("break 2");
-                                    whichOne.price = option;
                                     whichOne.value = "price";
                                     break;
                                 case option = "quantity":
-                                    console.log("break 3");
                                     whichOne.stock_quantity = option;
                                     whichOne.value = "quantity";
+                                    break;
+                                case option = "delete":
+                                    work.del(itemID[itemIndex]);
                             }
+
                             inquirer.prompt([{
                                 name: "newValue",
                                 type: "input",
@@ -174,7 +173,10 @@ Work.prototype.readAll = function(credentials){
                                         whichOne.price = newValue;
                                         updateArray.push({
                                             price: whichOne.price
-                                        })
+                                        },{
+                                            item_id : itemID[itemIndex]
+                                        });
+
                                         console.log("final update array: ",updateArray);
                                         work.theUpdator(updateArray);
                                         break;
@@ -182,10 +184,6 @@ Work.prototype.readAll = function(credentials){
                                         console.log(itemID[itemIndex],newValue);
                                         work.restock(itemID[itemIndex],newValue);                                        
                                 }
-                                console.log("which one is it?",whichOne);
-                                updateArray.push({
-                                    item_id: itemID[itemIndex]
-                                })
                             })
                         })
                     }
@@ -199,64 +197,98 @@ Work.prototype.readAll = function(credentials){
             }
         });
 }
-
+Work.prototype.deptName = function(){
+    var temp;
+    inquirer.prompt([{
+        name: "dept",
+        type: "list",
+        choices: ["electronics","collectables","housewares","crafts\n"],
+        message: "which department?"
+    }]).then(function(dept){
+        console.log("dept term: ",dept);
+        console.log("dept.dept ",dept.dept);
+        temp = dept.dept;
+    })
+    console.log("temp: ",temp);
+}
 Work.prototype.read = function(credentials){
     inquirer.prompt([{
         name: "searchTerm",
         type: "list",
         choices: ["product_name","department_name","price range","stock_quantity"],
         message: "how would you like to search for your product?"
-    },{
-        name: "whichOne",
-        type: "input",
-        message: "which one?"
     }]).then(function(searchTerm){
-        var searchName = searchTerm.whichOne;
-        var term = {};
-        switch(searchTerm.searchTerm){
+        var searchTerm = searchTerm.searchTerm;
+        var term;
+        switch(searchTerm){
             case searchTerm = "product_name":
-                term.product_name = searchName;
+                term.product_name = searchTerm;
+                console.log("term: ",term);
                 break
             case searchTerm = "department_name":
-                term.department_name = searchName;
+                inquirer.prompt([{
+                    name: "department",
+                    type: "list",
+                    choices: ["electronics","collectables","housewares","crafts\n"],
+                    message: "which department? "
+                }]).then(function(department){
+                    var department = department.department;
+                    term = department;
+                    console.log("department: ",department);
+                });
+                console.log("inside term: ",term);
                 break
             case searchTerm = "price range":
                 console.log("price range");
                 break
             case searchTerm = "stock_quantity":
-                term.stock_quantity = searchName;
-                break
+                term.stock_quantity = searchTerm;
+                console.log("term: ",term);
         }
-        connection.query("SELECT * FROM products WHERE ?", term,
-        function(err,res){
-            if(err) throw err;
-            var choices = [];
-            for(i=0; i<res.length; i++){
-                choices.push(res[i].product_name + ": $" + res[i].price);
-            }
-            if(credentials==="customer"){
-                inquirer.prompt([{
-                    name: "items",
-                    type: "list",
-                    choices: choices,
-                    message: "what would you like to buy?"
-                }]).then(function(items){
-                    var items = items.items;
-                    console.log("items: ",items);
-                    console.log("search Name: ",searchName);
-                    connection.query("SELECT item_id FROM products WHERE ?",{
-                        product_name: searchName
-                    },function(err,res){
-                            if(err) throw err;
-                            console.log("the new res: ",res[0].item_id);
-                            work.buy(res[0].item_id);
-                        });
-                    
-                })
-            }else if(credentials==="manager"){
-                console.log("create the manager display including price and quantity");
-            }
-        });
+        console.log("out term: ",term);
+
+        // ***************************************************************************************************************
+        // it keeps stopping as soon as the inquirer inside of the switch finishes              /    \
+        //                                                                                     | STOP |
+        // it doesn't even finish the switch casae                                              \    /
+        // ***************************************************************************************************************
+
+
+        // console.log("final term: ",term);
+        // connection.query(
+        //     "SELECT * FROM products WHERE ?", term,
+        //     function(err,res){
+        //         if(err) throw err;
+        //         var choices = [];
+        //         for(i=0; i<res.length; i++){
+        //             choices.push(res[i].product_name + ": $" + res[i].price);
+        //         }
+        //         if(credentials==="customer"){
+        //             inquirer.prompt([{
+        //                 name: "items",
+        //                 type: "list",
+        //                 choices: choices,
+        //                 message: "what would you like to buy?"
+        //             }]).then(function(items){
+        //                 var searchNameIndex = choices.indexOf(items);
+        //                 console.log(searchNameIndex);
+        //                 var searchName = "";
+        //                 var items = items.items;
+        //                 console.log("items: ",items);
+        //                 console.log("search Name: ",searchName);
+        //                 connection.query("SELECT item_id FROM products WHERE ?",{
+        //                     product_name: searchName
+        //                 },function(err,res){
+        //                         if(err) throw err;
+        //                         console.log("the new res: ",res);
+        //                         work.buy(res[0].item_id);
+        //                     });
+                        
+        //             })
+        //         }else if(credentials==="manager"){
+        //             console.log("create the manager display including price and quantity");
+        //         }
+        //     });
     })
 }
 
@@ -299,25 +331,28 @@ Work.prototype.update = function(){
     })
 }
 
-Work.prototype.del = function(){
+Work.prototype.del = function(itemID){
     inquirer.prompt([{
-        name: "item",
-        type: "input",
-        message: "which [item_id] do you want to delete?"
-    }]).then(function(item){
-        var item = item.item;
-        console.log("item: ",item);
-        var getOut = {
-            product_name: item
-        }
-        connection.query(
-            "DELETE FROM products WHERE ?",getOut,
-            function(err,res){
-                if(err) throw err;
-                console.log("affected rows: ",res.affectedRows);
-                console.log("changed rows: ",res.changedRows);
+        name: "yORn",
+        type: "confirm",
+        message: "are your sure you'd like to delete this item?"
+    }]).then(function(yORn){
+        yORn = yORn.yORn;
+        if(yORn){
+            var getOut = {
+                item_id: itemID
             }
-        )
+            connection.query(
+                "DELETE FROM products WHERE ?",getOut,
+                function(err,res){
+                    if(err) throw err;
+                    console.log("affected rows: ",res.affectedRows);
+                    console.log("changed rows: ",res.changedRows);
+                }
+            )
+        }else{
+            console.log("Which one is it?");
+        }
     })
 }
 
