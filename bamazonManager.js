@@ -28,10 +28,10 @@ connection.connect(function(err) {
                 work.create();
                 break;
             case choice = "read":
-                work.read();
+                work.readAll("manager");
                 break;
             case choice = "update":
-                work.update();
+                work.update("manager");
                 break;
             case choice = "delete":
                 work.del();

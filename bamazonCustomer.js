@@ -17,30 +17,26 @@ connection.connect(function(err) {
     if (err) throw err;
     console.log("connected as id " + connection.threadId);
     inquirer.prompt([{
-        name: "action",
+        name: "type",
         type: "list",
-        choices: ["look","buy"],
-        message: "what would you like to do?"
-    }]).then(function(action){
-        var action = action.action;
-        if(action==="look"){
-            inquirer.prompt([{
-                name: "type",
-                type: "list",
-                choices: ["search for something specific","browse everything"],
-                message: "how would you like to see it?"
-            }]).then(function(type){
-                var type = type.type;
-                console.log("type: ",type);
-                if(type==="search for something specific"){
-                    work.read();
-                }else{
-                    work.readAll();
-                }
-            })
+        choices: ["search for something specific","browse everything"],
+        message: "how would you like to see it?"
+    }]).then(function(type){
+        var type = type.type;
+        console.log("type: ",type);
+        if(type==="search for something specific"){
+            console.log("read before");
+            work.read("customer");
+            console.log("read after");
         }else{
-            work.read();
-            work.buy();
+            console.log("all before");
+            work.readAll("customer");
+            while(work.complete===true){
+                console.log("all after");
+            }
         }
+        console.log("after the whole thing");
+        
+    }).then(function(){
     })
 });
