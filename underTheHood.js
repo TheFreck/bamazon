@@ -1,11 +1,7 @@
 var inquirer = require("inquirer");
 var mysql = require("mysql");
 var table = require("console.table");
-var Work = function(shoppingCart){
-    this.shoppingCart = shoppingCart;
-};
-var work = new Work();
-var shoppingCart = [];
+var ShoppingCart = require("./shoppingCart");
 
 var connection = mysql.createConnection({
     host: "localhost",
@@ -14,10 +10,28 @@ var connection = mysql.createConnection({
     password: "root",
     database: "bamazon"
 });
-connection.connect(function(err) {
-    if (err) throw err;
 
-});
+var Work = function(shoppingCart){
+    this.shoppingCart = shoppingCart;
+    this.goingIn = true;
+};
+var work = new Work();
+
+var shoppingCart = new ShoppingCart();
+
+const departmentNames = ["electronics","collectables","housewares","crafts"];
+
+function connect(){
+    connection.connect(function(err){
+        if(err) throw err;
+    })
+}
+
+Work.prototype.byeBye = function(){
+    console.log("\n****************\nso long sukka!");
+    connection.end();
+}
+
 Work.prototype.create = function(){
     inquirer.prompt([{
         name: "name",
@@ -26,7 +40,7 @@ Work.prototype.create = function(){
     },{
         name: "dept",
         type: "list",
-        choices: ["electronics","collectables","housewares","crafts"],
+        choices: departmentNames,
         message: "which department?"
     },{
         name: "price",
@@ -36,9 +50,7 @@ Work.prototype.create = function(){
         name: "qty",
         type: "input",
         message: "how many are available?"
-    }
-
-    ]).then(function(response){
+    }]).then(function(response){
         var name = response.name;
         var dept = response.dept;
         var price = response.price;
@@ -50,10 +62,14 @@ Work.prototype.create = function(){
             stock_quantity: qty
         }, function(err, res){
             if(err) throw err;
-            console.log("affected rows: ",res.affectedRows);
-            console.log("changed rows: ",res.changedRows);
+            console.table("your product is hitting store shelves as we speak")
+            // work.byeBye();
+            console.log("last res",res);
+            console.log("line 68 still in");
+            
+            work.managerIn();
         })
-})
+    })
 }
 
 Work.prototype.theReader = function(column,value){
@@ -91,13 +107,13 @@ Work.prototype.readAll = function(credentials){
             var quantities = [];
             for(i=0; i<res.length; i++){
                 itemID.push(res[i].item_id);
-                customerChoices.push(res[i].product_name);
+                customerChoices.push(res[i].product_name + ", price: $" + res[i].price);
                 prices.push(": $" + res[i].price);
                 managerChoices.push(res[i].product_name + ", price: $" + res[i].price + ", quantity: " + res[i].stock_quantity);
                 quantities.push(res[i].stock_quantity);
             }
             if(credentials==="customer"){
-                console.log("customer view");
+                console.table("customer view");
                 var customerView = {
                     name: "items",
                     type: "list",
@@ -107,7 +123,7 @@ Work.prototype.readAll = function(credentials){
                 view(customerView,"customer");
             }
             if(credentials==="manager"){
-                console.log("manager view");
+                console.table("manager view");
                 var managerView = {
                     name: "items",
                     type: "list",
@@ -117,24 +133,25 @@ Work.prototype.readAll = function(credentials){
                 view(managerView,"manager");
             }
             if(credentials==="supervisor"){
-                console.log("you're a supervisor. ooh look at you");
+                console.table("you're a supervisor. ooh look at you");
+                // work.byeBye();
             }
             function view(questionObject,credentials){
                 inquirer.prompt([
                     questionObject
                 ]).then(function(items){
-                    // var items = items.items;
-                    var itemIndex = managerChoices.indexOf(items.items);
-                    console.log("item index: ",itemIndex);
-                    console.log("item ID: ",itemID[itemIndex]);
-                    console.log("item name: ",customerChoices[itemIndex]);
-                    console.log("item price: ",prices[itemIndex]);
-                    console.log("item quantity: ",quantities[itemIndex]);
+                    var itemIndex = 0;
+                    if(credentials==="manager"){
+                        itemIndex = managerChoices.indexOf(items.items);
+                    }else{
+                        itemIndex = customerChoices.indexOf(items.items);
+                    }
                     // *******************************************************************
                     // CUSTOMER
                     // *******************************************************************
                     if(credentials==="customer"){
-                        work.buy(res[0].item_id);
+                        console.log("itemIndex: ",itemIndex);
+                        work.buy(itemIndex);
                     }
                     // *******************************************************************
                     // MANAGER
@@ -148,41 +165,25 @@ Work.prototype.readAll = function(credentials){
                             message: "what would you like to update?"
                         }]).then(function(option){
                             var option = option.option;
-                            var whichOne = {};
-                            switch(option){
-                                case option = "price":
-                                    whichOne.value = "price";
-                                    break;
-                                case option = "quantity":
-                                    whichOne.stock_quantity = option;
-                                    whichOne.value = "quantity";
-                                    break;
-                                case option = "delete":
-                                    work.del(itemID[itemIndex]);
+                            if(option==="delete"){
+                                work.del(itemID[itemIndex]);
                             }
-
                             inquirer.prompt([{
                                 name: "newValue",
                                 type: "input",
                                 message: "new value: "
                             }]).then(function(newValue){
                                 var newValue = newValue.newValue;
-                                var whichOneIsIt = whichOne.value
-                                switch(whichOneIsIt){
-                                    case whichOneIsIt = "price":
-                                        whichOne.price = newValue;
-                                        updateArray.push({
-                                            price: whichOne.price
-                                        },{
-                                            item_id : itemID[itemIndex]
-                                        });
-
-                                        console.log("final update array: ",updateArray);
-                                        work.theUpdator(updateArray);
-                                        break;
-                                    case whichOneIsIt = "quantity":
-                                        console.log(itemID[itemIndex],newValue);
-                                        work.restock(itemID[itemIndex],newValue);                                        
+                                if(option === "price"){
+                                    updateArray.push({
+                                        price: newValue
+                                    },{
+                                        item_id : itemID[itemIndex]
+                                    });
+                                    work.theUpdator(updateArray);
+                                }else{
+                                    console.table("time to restock");
+                                    work.restock(itemID[itemIndex],newValue);
                                 }
                             })
                         })
@@ -191,105 +192,45 @@ Work.prototype.readAll = function(credentials){
                     // SUPERVISOR
                     // *******************************************************************
                     if(credentials==="supervisor"){
-                        console.log("supervisor");
+                        console.table(" you're a supervisor. super you");
                     }
                 })
             }
         });
 }
-Work.prototype.deptName = function(){
-    var temp;
-    inquirer.prompt([{
-        name: "dept",
-        type: "list",
-        choices: ["electronics","collectables","housewares","crafts\n"],
-        message: "which department?"
-    }]).then(function(dept){
-        console.log("dept term: ",dept);
-        console.log("dept.dept ",dept.dept);
-        temp = dept.dept;
-    })
-    console.log("temp: ",temp);
-}
-Work.prototype.read = function(credentials){
-    inquirer.prompt([{
-        name: "searchTerm",
-        type: "list",
-        choices: ["product_name","department_name","price range","stock_quantity"],
-        message: "how would you like to search for your product?"
-    }]).then(function(searchTerm){
-        var searchTerm = searchTerm.searchTerm;
-        var term;
-        switch(searchTerm){
-            case searchTerm = "product_name":
-                term.product_name = searchTerm;
-                console.log("term: ",term);
-                break
-            case searchTerm = "department_name":
+
+Work.prototype.read = function(){
+    var term = {}
+    term.name = "look";
+    term.type = "list";
+    term.choices = departmentNames;
+    term.message = "which department?";
+    inquirer.prompt([term]).then(function(look){
+        var look = look.look;
+        var select = {};
+        select.department_name = look;
+        connection.query(
+            "SELECT * FROM products WHERE ?", select,
+            function(err,res){
+                if(err) throw err;
+                var choices = [];
+                var itemID = [];
+                for(i=0; i<res.length; i++){
+                    choices.push(res[i].product_name + ": $" + res[i].price);
+                    itemID.push(res[i].item_id);
+                }
                 inquirer.prompt([{
-                    name: "department",
+                    name: "items",
                     type: "list",
-                    choices: ["electronics","collectables","housewares","crafts\n"],
-                    message: "which department? "
-                }]).then(function(department){
-                    var department = department.department;
-                    term = department;
-                    console.log("department: ",department);
-                });
-                console.log("inside term: ",term);
-                break
-            case searchTerm = "price range":
-                console.log("price range");
-                break
-            case searchTerm = "stock_quantity":
-                term.stock_quantity = searchTerm;
-                console.log("term: ",term);
-        }
-        console.log("out term: ",term);
-
-        // ***************************************************************************************************************
-        // it keeps stopping as soon as the inquirer inside of the switch finishes              /    \
-        //                                                                                     | STOP |
-        // it doesn't even finish the switch casae                                              \    /
-        // ***************************************************************************************************************
-
-
-        // console.log("final term: ",term);
-        // connection.query(
-        //     "SELECT * FROM products WHERE ?", term,
-        //     function(err,res){
-        //         if(err) throw err;
-        //         var choices = [];
-        //         for(i=0; i<res.length; i++){
-        //             choices.push(res[i].product_name + ": $" + res[i].price);
-        //         }
-        //         if(credentials==="customer"){
-        //             inquirer.prompt([{
-        //                 name: "items",
-        //                 type: "list",
-        //                 choices: choices,
-        //                 message: "what would you like to buy?"
-        //             }]).then(function(items){
-        //                 var searchNameIndex = choices.indexOf(items);
-        //                 console.log(searchNameIndex);
-        //                 var searchName = "";
-        //                 var items = items.items;
-        //                 console.log("items: ",items);
-        //                 console.log("search Name: ",searchName);
-        //                 connection.query("SELECT item_id FROM products WHERE ?",{
-        //                     product_name: searchName
-        //                 },function(err,res){
-        //                         if(err) throw err;
-        //                         console.log("the new res: ",res);
-        //                         work.buy(res[0].item_id);
-        //                     });
-                        
-        //             })
-        //         }else if(credentials==="manager"){
-        //             console.log("create the manager display including price and quantity");
-        //         }
-        //     });
-    })
+                    choices: choices,
+                    message: "what would you like to buy?"
+                }]).then(function(items){
+                    var items = items.items;
+                    var searchNameIndex = choices.indexOf(items);
+                    work.buy(itemID[searchNameIndex]);
+                })
+            });
+    });
 }
 
 Work.prototype.theUpdator = function(updateArray){
@@ -297,38 +238,9 @@ Work.prototype.theUpdator = function(updateArray){
         "UPDATE products SET ? WHERE ?",updateArray,
         function(err,res){
             if(err) throw err;
-            console.log("affected rows: ",res.affectedRows);
-            console.log("changed rows: ",res.changedRows);
+            console.table("it is done")
         }
     )
-}
-
-Work.prototype.update = function(){
-    inquirer.prompt([{
-        name: "product",
-        type: "input",
-        message: "which product would you like to update?"
-    }]).then(function(product){
-        var product = product.product;
-        console.log("product: ",product);
-        inquirer.prompt([{
-            name: "department_name",
-            type: "list",
-            choices: ["electronics","collectables","housewares","crafts"],
-            message: "update department: "
-        },{
-            name: "price",
-            type: "input",
-            message: "update price: "
-        },{
-            name: "stock_quantity",
-            type: "input",
-            message: "update quantity: "
-        }]).then(function(update){
-            var updateArray = [update,{product_name: product}];
-            work.theUpdator(updateArray);
-        })
-    })
 }
 
 Work.prototype.del = function(itemID){
@@ -346,75 +258,84 @@ Work.prototype.del = function(itemID){
                 "DELETE FROM products WHERE ?",getOut,
                 function(err,res){
                     if(err) throw err;
-                    console.log("affected rows: ",res.affectedRows);
-                    console.log("changed rows: ",res.changedRows);
-                }
-            )
-        }else{
-            console.log("Which one is it?");
+                    console.table("it's gone. don't try to get it back")
+                    // work.byeBye();
+                })
+            }else{
+                console.table("Which one is it? sheesh!");
+                // work.byeBye();
         }
     })
 }
 
-Work.prototype.buy = function(item_id){
+Work.prototype.buy = function(item){
+    console.log("buy item: ",item);
     inquirer.prompt([{
         name: "qty",
         type: "input",
         message: "how many would you like?"
     }]).then(function(qty){
-        var item = item_id
         var qty = qty.qty;
-        console.log("buy item_id",item);
-        console.log("how many? ",qty);
         connection.query(
             "SELECT product_name, price FROM products WHERE ?",{
                 item_id: item
             },
             function(err,res){
                 if(err) throw err;
-                console.log(`for ${qty} of ${res[0].product_name} will cost $${res[0].price * qty}`);
+                console.log("buy res: ",res);
+                console.table(`\n********************************************\n${res[0].product_name} \n     ${qty} * $${res[0].price} = $${res[0].price * qty}\n===============================\n`);
                 inquirer.prompt([{
                     name: "yORn",
                     type: "confirm",
                     message: "buy this?"
                 }]).then(function(yORn){
                     var yORn = yORn.yORn;
-                    console.log("yes or no? ",yORn);
                     if(yORn===true){
                         connection.query(
                             "SELECT stock_quantity FROM products WHERE ?",{
                                 item_id: item
                             },function(err,res){
                                 if(err) throw err;
-                                console.log("current qty: ",res[0].stock_quantity);
-                                var newQTY = res[0].stock_quantity - qty;
-                                console.log("new quantity: ",newQTY);
-                                
+                                var newQty = res[0].stock_quantity - qty;
                                 var updateArray = [
-                                    {stock_quantity: newQTY},
+                                    {stock_quantity: newQty},
                                     {item_id: item}
                                 ];
+                                var shoppingCartObject = {};
+                                shoppingCartObject.qty = qty;
+                                shoppingCartObject.price = res[0].price;
+                                shoppingCartObject.product_name = res[0].product_name;
+                                shoppingCart.productsArray.push(shoppingCartObject);
+                                console.log("shoppingCart: ",shoppingCart.productsArray);
                                 work.theUpdator(updateArray);
                             }
                         )
                     }else{
-                        console.log("maybe next time");
+                        console.table("maybe next time");
                     }
                 })
             });
-        
     })
 }
 
-Work.prototype.theUpdator = function(updateArray){
+Work.prototype.theUpdator = function(updateArray,postUpdate){
     connection.query(
         "UPDATE products SET ? WHERE ?",updateArray,
         function(err,res){
             if(err) throw err;
-            console.log("affected rows: ",res.affectedRows);
-            console.log("changed rows: ",res.changedRows);
+            console.table("done");
+            work.goingIn = true;
         }
     )
+    if(postUpdate){
+        connection.query(
+            "SELECT * FROM products WHERE ?",updateArray[1],function(err,res){
+                if(err) throw err;
+                console.table("post update: ",res);
+            }
+        )
+    }
+    // work.byeBye();
 }
 
 Work.prototype.restock = function(item_id,qty){
@@ -426,25 +347,101 @@ Work.prototype.restock = function(item_id,qty){
         function(err,res){
             if(err) throw err;
             var currentQty = res[0].stock_quantity;
-            console.log(currentQty);
+            console.table("current inventory: ",currentQty);
             var newQty = parseInt(currentQty) + parseInt(qty);
-            console.log(" new quantity: ",newQty);
-            console.log("item id: ", item_id);
+            console.table("new inventory: ",newQty);
+            console.table("item id: ", item_id);
             var updateArray = [
                 {stock_quantity: newQty},
                 {item_id: item_id}
             ];
-            work.theUpdator(updateArray);
+            work.theUpdator(updateArray,true);
         }
     )
-    // work.theReader(column,value);
 }
 
+Work.prototype.low = function(){
+    connection.query(
+        "SELECT * FROM products WHERE stock_quantity < 100",function(err,res){
+            if(err) throw err;
+            console.table(res);
+        }
+    )
+}
 
+Work.prototype.checkOut = function(){
+    console.log(`your shopping cart:\n  ${shoppingCart}\n total: ${shoppingCart.totalPrice}`)
+    work.goingIn = false;
+    work.byeBye();
+}
+Work.prototype.salesTotals = function(){
 
+}
 
+Work.prototype.managerIn = function(){
+    connect();
+    inquirer.prompt([{
+        name: "choice",
+        type: "list",
+        choices: ["create","read","check low inventory","log out"],
+        message: "what would you like to do?"
+    }]).then(function(choice){
+        choice = choice.choice;
+        switch(choice){
+            case choice = "create":
+                work.create();
+                break;
+            case choice = "read":
+                work.readAll("manager");
+                break;
+            case choice = "check low inventory":
+                work.low();
+                break;
+            case choice = "log out":
+                // work.byeBye();
+        }
+    })
+}
 
+Work.prototype.customerIn = function(){
+    connect();
+    inquirer.prompt([{
+        name: "type",
+        type: "list",
+        choices: ["search by department","browse everything","check out"],
+        message: "how would you like to see it?"
+    }]).then(function(type){
+        var type = type.type;
+        console.log("type: ",type);
+        switch(type){
+            case type = "search by department":
+                work.read();
+                break;
+            case type = "browse everything":
+                work.readAll("customer");
+                break;
+            case type = "check out":
+                work.checkOut();
+        }
+    })
+};
 
+Work.prototype.supervisorIn = function(){
+    connect();
+    inquirer.prompt([{
+        name: "action",
+        type: "list",
+        choices: ["browse inventory","check sales"],
+        message: "what would you like to do?"
+    }]).then(function(action){
+        var action = action.action;
+        if(action==="browse inventory"){
+            work.readAll("supervisor");
+        }else{
+            work.salesTotals();
+        }
+    })
+}
 
 
 
