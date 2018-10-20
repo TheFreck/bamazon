@@ -414,29 +414,36 @@ Work.prototype.customerIn = function(message){
     }.bind(this))
 };
 
-Work.prototype.supervisorIn = function(){
+Work.prototype.supervisorIn = function(message){
     var that = this;
     console.log('\033[2J');
+    console.log(message)
     inquirer.prompt([{
         name: "act",
         type: "list",
-        choices: ["browse inventory","check sales"],
+        choices: ["browse inventory","check sales by department","check total sales"],
         message: "what would you like to do?"
     }]).then(function(act){
         var act = act.act;
-        if(act==="browse inventory"){
-            that.readAll("supervisor");
-        }else{
-            inquirer.prompt([{
-                name: "dept",
-                type: "list",
-                choices: departmentNames,
-                message: "which department would you like to see?"
-            }]).then(function(dept){
-                var dept = dept.dept;
-                console.log(dept);
-                sales.sales(dept);
-            })
+        switch(act){
+            case "browse inventory":
+                that.readAll("supervisor");
+                break;
+            case "check sales by department":
+                inquirer.prompt([{
+                    name: "dept",
+                    type: "list",
+                    choices: departmentNames,
+                    message: "which department would you like to see?"
+                }]).then(function(dept){
+                    var dept = dept.dept;
+                    console.log(dept);
+                    sales.sales(dept);
+                    that.supervisorIn("\n*****************************\nwhat would you like to do now?\n*****************************\n");
+                })
+                break;
+            default:
+                sales.allSales("\n*****************************\nwhat would you like to do now?\n*****************************\n");
         }
     }.bind(this))
 }

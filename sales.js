@@ -20,10 +20,20 @@ Sales.prototype.cost = function(){
 
 Sales.prototype.sales = function(department){
     connection.query(
-        "SELECT department_name,SUM(price*quantity_sold) FROM sales WHERE? ",{
+        "SELECT department_name,SUM(price*quantity_sold) AS total_sales FROM sales WHERE? ",{
             department_name: department
         },function(err,res){
             if(err) throw err;
+            console.table("sales totals: ",res);
+        }
+    )
+}
+
+Sales.prototype.allSales = function(){
+    connection.query(
+        "SELECT department_name,SUM(price*quantity_sold) AS total_sales FROM sales GROUP BY department_name",function(err,res){
+            if(err) throw err;
+            console.table("total sales: ",res);
         }
     )
 }
