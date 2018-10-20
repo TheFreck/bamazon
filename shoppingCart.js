@@ -24,20 +24,17 @@ ShoppingCart.prototype.totals = function(){
     for(i=0; i<this.productsArray.length; i++){
         this.totalPrice += this.productsArray[i].price * this.productsArray[i].qty;
     }
+    console.log("total purchase: ",this.totalPrice);
     return this.totalPrice;
 }
 
 
 ShoppingCart.prototype.addTo = function(purchase,id){
-    console.log("purchase: ",purchase);
-    console.log("adding to qty array: ",purchase.qty);
-    console.log("adding to price array: ",purchase.price);
+    console.log("id: ",id);
     purchase.total = purchase.qty * purchase.price;
-    console.log("puchase with total: ",purchase);
     this.productsArray.push(purchase);
     this.idArray.push(id);
-    console.log("adding id to the array: ",this.idArray);
-    console.log("productsArray after adding: ",this.productsArray);
+    console.log("id array: ",this.idArray);
 }
 
 ShoppingCart.prototype.showOff = function(){
@@ -75,53 +72,57 @@ ShoppingCart.prototype.showOff = function(){
 ShoppingCart.prototype.checkOut = function(){
     var that = this;
     console.table("checkout cart items: ",that.productsArray);
-    console.table("checkout total price: ",that.totals() + "\n");
+    that.totals();
     inquirer.prompt([{
         name: "yorn",
         type: "confirm",
-        message: "confirm your purchase"
+        message: "confirm your purchases"
     }]).then(function(yorn){
         var yorn = yorn.yorn;
         if(yorn){
             for(i=0; i<that.productsArray.length; i++){
                 var checkOutQty = that.productsArray[i].qty;
-                console.log("qty: ",checkOutQty);
                 var checkOutId = that.idArray[i];
-                console.log("ID: ",checkOutId);
+                console.log("checkOutId before getQty: ",checkOutId);
                 var passObject1 = {
                     item_id: that.idArray[i]
                 }
-                connection.query(
-                    "SELECT stock_quantity FROM products WHERE ?",{
-                        item_id: checkOutId
-                    },function(err,res){
-                        if(err) throw err;
-                        var onHand = res[0].stock_quantity;
-                        console.log("current stock on hand: ",onHand);
-                        var newOnHand = onHand - checkOutQty;
-                        console.log("new stock: ",newOnHand);
-                        var newOnHandObj = {stock_quantity: newOnHand};
-                        var passArray = [newOnHandObj];
-                        passArray.push(passObject1);
-                        console.log("pass array: ",passArray);
-                        that.theUpdator(passArray);
-                        console.log("\n$ $ $$ $$$ $$$$$ $$$$$$$$ $$$$$$$$$$$$$\n\nnow gimme my money and get outa here!\n\n$ $ $$ $$$ $$$$$ $$$$$$$$ $$$$$$$$$$$$$");
-                        sales.theUpdator(checkOutId,checkOutQty);
-                        console.log("\n****\nnext\n****\n");
-                    }
-                )
+            getQty(checkOutId,checkOutQty,i);
+                function getQty(checkOutId,checkOutQty,index){
+                    console.log("getQty index: ",index);
+                    console.log("getQty checkOutId: ",checkOutId);
+                    console.log("getQty qty: ",checkOutQty);
+                    connection.query(
+                        "SELECT stock_quantity FROM products WHERE ?",{
+                            item_id: checkOutId
+                        },function(err,res){
+                            console.log("getQty qty: ",checkOutQty);
+                            if(err) throw err;
+                            var onHand = res[0].stock_quantity;
+                            console.log("onHand: ",onHand);
+                            var newOnHand = onHand - checkOutQty;
+                            console.log("newOnHand: ",newOnHand);
+                            var newOnHandObj = {stock_quantity: newOnHand};
+                            var passArray = [newOnHandObj];
+                            passArray.push(passObject1);
+                            that.theUpdator(passArray);
+                            console.log("checkoutid: ",checkOutId);
+                            console.log("checkoutqty: ",checkOutQty);
+                            sales.theUpdator(checkOutId,checkOutQty);
+                        }
+                    )
+                }
             }
+            console.table("\n$ $ $$ $$$ $$$$$ $$$$$$$$ $$$$$$$$$$$$$\n\nnow gimme my money and get outa here!\n\n$ $ $$ $$$ $$$$$ $$$$$$$$ $$$$$$$$$$$$$");
         }
     })
 }
 
 ShoppingCart.prototype.theUpdator = function(updateArray){
-    console.log("the updator");
     connection.query(
         "UPDATE products SET ? WHERE ?",updateArray,
         function(err,res){
             if(err) throw err;
-            console.log("update res: ",res);
         }
     )
 }

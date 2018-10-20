@@ -6,6 +6,7 @@ var Sales = require("./sales")
 
 // *********************************************************************************************************
 // then work on supervisor mode
+// figure out a way to restart when the custoemr wants to keep shopping from the shopping cart menu
 // *********************************************************************************************************
 
 var connection = mysql.createConnection({
@@ -163,8 +164,8 @@ Work.prototype.readAll = function(credentials){
                                     console.table("time to restock");
                                     that.restock(itemID[itemIndex],newValue);
                                 }
-                            })
-                        })
+                            }.bind(this))
+                        }.bind(this))
                     }
                     // *******************************************************************
                     // SUPERVISOR
@@ -172,9 +173,9 @@ Work.prototype.readAll = function(credentials){
                     if(credentials==="supervisor"){
                         console.table(" you're a supervisor. super you");
                     }
-                })
+                }.bind(this))
             }
-        });
+        }.bind(this));
 }
 
 Work.prototype.read = function(){
@@ -207,9 +208,9 @@ Work.prototype.read = function(){
                     var items = items.items;
                     var searchNameIndex = choices.indexOf(items);
                     that.buy(itemID[searchNameIndex]);
-                })
-            });
-    });
+                }.bind(this))
+            }.bind(this));
+    }.bind(this));
 }
 
 Work.prototype.del = function(itemID){
@@ -227,13 +228,13 @@ Work.prototype.del = function(itemID){
                     if(err) throw err;
                     console.table("it's gone. don't try to get it back")
                     that.managerIn();
-                })
+                }.bind(this))
             }else{
                 console.table("Which one is it? sheesh!");
                 that.managerIn();
 
         }
-    })
+    }.bind(this))
 }
 
 Work.prototype.buy = function(item){
@@ -251,8 +252,7 @@ Work.prototype.buy = function(item){
             },
             function(err,res){
                 if(err) throw err;
-                console.log("buyers res: ",res);
-                console.table(`\n********************************************\n${res[0].product_name} \n     ${qty} * $${res[0].price} = $${res[0].price * qty}\n===============================\n`);
+                console.table(`${res[0].product_name} \n     ${qty} * $${res[0].price} = $${res[0].price * qty}`);
                 inquirer.prompt([{
                     name: "yORn",
                     type: "confirm",
@@ -260,20 +260,33 @@ Work.prototype.buy = function(item){
                 }]).then(function(yORn){
                     var yORn = yORn.yORn;
                     if(yORn){
+                        console.log("item id: ",res[0].item_id);
                         var shoppingCartObject = {};
                         shoppingCartObject.qty = qty;
                         shoppingCartObject.price = res[0].price;
                         shoppingCartObject.product_name = res[0].product_name;
-                        shoppingCart.addTo(shoppingCartObject,res[0].item_id);
-                        console.log("added to your shopping cart");
-                        that.customerIn();
+                        connection.query(
+                            "SELECT stock_quantity FROM products WHERE ?",{
+                                item_id: res[0].item_id
+                            },function(err,ret){
+                                if(err) throw err;
+                                console.log("line 272: ",ret[0].stock_quantity);
+                                if(ret[0].stock_quantity-qty < 0){
+                                    that.customerIn("\n*****************************\nsorry. running low right now.\nwe're down to our last " + ret[0].stock_quantity + "\n*****************************\n");
+                                }else{
+                                    shoppingCart.addTo(shoppingCartObject,res[0].item_id);
+                                    console.log("added to your shopping cart");
+                                    that.customerIn("\n*****************************\nwhat else would you like to look at?\n*****************************\n");
+                                }
+                            }.bind(this)
+                        )
                     }else{
                         console.table("maybe next time");
                         that.customerIn();
                     }
-                })
-            });
-    })
+                }.bind(this))
+            }.bind(this));
+    }.bind(this))
 }
 
 Work.prototype.theUpdator = function(updateArray,credentials){
@@ -291,7 +304,7 @@ Work.prototype.theUpdator = function(updateArray,credentials){
                 if(err) throw err;
                 console.table("post update: ",res);
                 that.managerIn();
-            }
+            }.bind(this)
         )
     }else{
         that.customerIn();
@@ -317,7 +330,7 @@ Work.prototype.restock = function(item_id,qty){
                 {item_id: item_id}
             ];
             that.theUpdator(updateArray,"manager");
-        }
+        }.bind(this)
     )
 }
 
@@ -370,12 +383,13 @@ Work.prototype.managerIn = function(){
             case choice = "log out":
                 that.byeBye();
         }
-    })
+    }.bind(this))
 }
 
-Work.prototype.customerIn = function(){
+Work.prototype.customerIn = function(message){
     var that = this;
     console.log('\033[2J');
+    console.log(message);
     inquirer.prompt([{
         name: "type",
         type: "list",
@@ -397,7 +411,7 @@ Work.prototype.customerIn = function(){
                 // console.log("post showoff pre customerIn");
                 // that.customerIn();
         }
-    })
+    }.bind(this))
 };
 
 Work.prototype.supervisorIn = function(){
@@ -424,7 +438,7 @@ Work.prototype.supervisorIn = function(){
                 sales.sales(dept);
             })
         }
-    })
+    }.bind(this))
 }
 
 
