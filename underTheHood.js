@@ -2,6 +2,11 @@ var inquirer = require("inquirer");
 var mysql = require("mysql");
 var table = require("console.table");
 var ShoppingCart = require("./shoppingCart");
+var Sales = require("./sales")
+
+// *********************************************************************************************************
+// then work on supervisor mode
+// *********************************************************************************************************
 
 var connection = mysql.createConnection({
     host: "localhost",
@@ -11,25 +16,18 @@ var connection = mysql.createConnection({
     database: "bamazon"
 });
 
-var Work = function(shoppingCart){
+function Work (shoppingCart){
     this.shoppingCart = shoppingCart;
-    this.goingIn = true;
 };
-var work = new Work();
 
 var shoppingCart = new ShoppingCart();
+var sales = new Sales();
 
-const departmentNames = ["electronics","collectables","housewares","crafts"];
+const departmentNames = ["electronics","collectables","housewares","arts and crafts"];
 
-function connect(){
-    connection.connect(function(err){
-        if(err) throw err;
-    })
-}
 
 Work.prototype.byeBye = function(){
     console.log("\n****************\nso long sukka!");
-    connection.end();
 }
 
 Work.prototype.create = function(){
@@ -62,41 +60,14 @@ Work.prototype.create = function(){
             stock_quantity: qty
         }, function(err, res){
             if(err) throw err;
-            console.table("your product is hitting store shelves as we speak")
-            // work.byeBye();
-            console.log("last res",res);
-            console.log("line 68 still in");
-            
-            work.managerIn();
-        })
-    })
-}
-
-Work.prototype.theReader = function(column,value){
-    var columnObj = {};
-    switch(column){
-        case column = "product_name":
-            columnObj.product_name = value;
-            break;
-        case column = "department_name":
-            columnObj.department_name = value;
-            break;
-        case column = "price":
-            columnObj.price = value;
-            break;
-        case column = "stock_quantity":
-            columnObj.stock_quantity = value;
-    }
-    connection.query(
-        "SELECT * FROM products WHERE ?",
-        columnObj,
-        function(err,res){
-            if(err) throw err;
-            return res;
-        })
+            console.table("your product is hitting store shelves as we speak");
+            this.managerIn();
+        }.bind(this))
+    }.bind(this))
 }
 
 Work.prototype.readAll = function(credentials){
+    var that = this;
     connection.query("SELECT * FROM products",
         function(err,res){
             if(err) throw err;
@@ -105,12 +76,14 @@ Work.prototype.readAll = function(credentials){
             var itemID = [];
             var prices = [];
             var quantities = [];
+            var names = [];
             for(i=0; i<res.length; i++){
                 itemID.push(res[i].item_id);
-                customerChoices.push(res[i].product_name + ", price: $" + res[i].price);
+                names.push(res[i].product_name);
                 prices.push(": $" + res[i].price);
-                managerChoices.push(res[i].product_name + ", price: $" + res[i].price + ", quantity: " + res[i].stock_quantity);
                 quantities.push(res[i].stock_quantity);
+                customerChoices.push(res[i].product_name + ", price: $" + res[i].price);
+                managerChoices.push(res[i].product_name + ", price: $" + res[i].price + ", quantity: " + res[i].stock_quantity);
             }
             if(credentials==="customer"){
                 console.table("customer view");
@@ -120,7 +93,7 @@ Work.prototype.readAll = function(credentials){
                     choices: customerChoices,
                     message: "what would you like to buy?"
                 };
-                view(customerView,"customer");
+                view(customerView,credentials);
             }
             if(credentials==="manager"){
                 console.table("manager view");
@@ -130,28 +103,34 @@ Work.prototype.readAll = function(credentials){
                     choices: managerChoices,
                     message: "what would you like to view?"
                 }
-                view(managerView,"manager");
+                view(managerView,credentials);
             }
             if(credentials==="supervisor"){
-                console.table("you're a supervisor. ooh look at you");
-                // work.byeBye();
+                console.table("\n***************************\nyou're a supervisor. ooh look at you\n******************************************");
+                that.byeBye();
             }
             function view(questionObject,credentials){
+                
+                console.log("credentials: ",credentials);
                 inquirer.prompt([
                     questionObject
                 ]).then(function(items){
                     var itemIndex = 0;
                     if(credentials==="manager"){
+                        console.log("item.item",items.items);
                         itemIndex = managerChoices.indexOf(items.items);
                     }else{
+                        console.log("item.item",items.items);
                         itemIndex = customerChoices.indexOf(items.items);
                     }
                     // *******************************************************************
                     // CUSTOMER
                     // *******************************************************************
                     if(credentials==="customer"){
-                        console.log("itemIndex: ",itemIndex);
-                        work.buy(itemIndex);
+                        console.log("item_id: ",itemID[itemIndex]);
+                        console.log("customer choice: ",customerChoices[itemIndex]);
+                        console.log("manager choice: ",managerChoices[itemIndex]);
+                        that.buy(itemID[itemIndex]);
                     }
                     // *******************************************************************
                     // MANAGER
@@ -166,7 +145,7 @@ Work.prototype.readAll = function(credentials){
                         }]).then(function(option){
                             var option = option.option;
                             if(option==="delete"){
-                                work.del(itemID[itemIndex]);
+                                that.del(itemID[itemIndex]);
                             }
                             inquirer.prompt([{
                                 name: "newValue",
@@ -175,15 +154,14 @@ Work.prototype.readAll = function(credentials){
                             }]).then(function(newValue){
                                 var newValue = newValue.newValue;
                                 if(option === "price"){
-                                    updateArray.push({
-                                        price: newValue
-                                    },{
-                                        item_id : itemID[itemIndex]
-                                    });
-                                    work.theUpdator(updateArray);
+                                    updateArray.push(
+                                        {price: newValue},
+                                        {item_id : itemID[itemIndex]}
+                                        );
+                                    that.theUpdator(updateArray,"manager");
                                 }else{
                                     console.table("time to restock");
-                                    work.restock(itemID[itemIndex],newValue);
+                                    that.restock(itemID[itemIndex],newValue);
                                 }
                             })
                         })
@@ -200,6 +178,7 @@ Work.prototype.readAll = function(credentials){
 }
 
 Work.prototype.read = function(){
+    var that = this;
     var term = {}
     term.name = "look";
     term.type = "list";
@@ -227,20 +206,10 @@ Work.prototype.read = function(){
                 }]).then(function(items){
                     var items = items.items;
                     var searchNameIndex = choices.indexOf(items);
-                    work.buy(itemID[searchNameIndex]);
+                    that.buy(itemID[searchNameIndex]);
                 })
             });
     });
-}
-
-Work.prototype.theUpdator = function(updateArray){
-    connection.query(
-        "UPDATE products SET ? WHERE ?",updateArray,
-        function(err,res){
-            if(err) throw err;
-            console.table("it is done")
-        }
-    )
 }
 
 Work.prototype.del = function(itemID){
@@ -251,24 +220,24 @@ Work.prototype.del = function(itemID){
     }]).then(function(yORn){
         yORn = yORn.yORn;
         if(yORn){
-            var getOut = {
-                item_id: itemID
-            }
+            var getOut = {item_id: itemID};
             connection.query(
                 "DELETE FROM products WHERE ?",getOut,
                 function(err,res){
                     if(err) throw err;
                     console.table("it's gone. don't try to get it back")
-                    // work.byeBye();
+                    that.managerIn();
                 })
             }else{
                 console.table("Which one is it? sheesh!");
-                // work.byeBye();
+                that.managerIn();
+
         }
     })
 }
 
 Work.prototype.buy = function(item){
+    var that = this;
     console.log("buy item: ",item);
     inquirer.prompt([{
         name: "qty",
@@ -277,12 +246,12 @@ Work.prototype.buy = function(item){
     }]).then(function(qty){
         var qty = qty.qty;
         connection.query(
-            "SELECT product_name, price FROM products WHERE ?",{
+            "SELECT item_id,product_name, price FROM products WHERE ?",{
                 item_id: item
             },
             function(err,res){
                 if(err) throw err;
-                console.log("buy res: ",res);
+                console.log("buyers res: ",res);
                 console.table(`\n********************************************\n${res[0].product_name} \n     ${qty} * $${res[0].price} = $${res[0].price * qty}\n===============================\n`);
                 inquirer.prompt([{
                     name: "yORn",
@@ -290,55 +259,47 @@ Work.prototype.buy = function(item){
                     message: "buy this?"
                 }]).then(function(yORn){
                     var yORn = yORn.yORn;
-                    if(yORn===true){
-                        connection.query(
-                            "SELECT stock_quantity FROM products WHERE ?",{
-                                item_id: item
-                            },function(err,res){
-                                if(err) throw err;
-                                var newQty = res[0].stock_quantity - qty;
-                                var updateArray = [
-                                    {stock_quantity: newQty},
-                                    {item_id: item}
-                                ];
-                                var shoppingCartObject = {};
-                                shoppingCartObject.qty = qty;
-                                shoppingCartObject.price = res[0].price;
-                                shoppingCartObject.product_name = res[0].product_name;
-                                shoppingCart.productsArray.push(shoppingCartObject);
-                                console.log("shoppingCart: ",shoppingCart.productsArray);
-                                work.theUpdator(updateArray);
-                            }
-                        )
+                    if(yORn){
+                        var shoppingCartObject = {};
+                        shoppingCartObject.qty = qty;
+                        shoppingCartObject.price = res[0].price;
+                        shoppingCartObject.product_name = res[0].product_name;
+                        shoppingCart.addTo(shoppingCartObject,res[0].item_id);
+                        console.log("added to your shopping cart");
+                        that.customerIn();
                     }else{
                         console.table("maybe next time");
+                        that.customerIn();
                     }
                 })
             });
     })
 }
 
-Work.prototype.theUpdator = function(updateArray,postUpdate){
+Work.prototype.theUpdator = function(updateArray,credentials){
+    var that = this
     connection.query(
         "UPDATE products SET ? WHERE ?",updateArray,
         function(err,res){
             if(err) throw err;
-            console.table("done");
-            work.goingIn = true;
         }
     )
-    if(postUpdate){
+    // returns updated values for managers
+    if(credentials==="manager"){
         connection.query(
             "SELECT * FROM products WHERE ?",updateArray[1],function(err,res){
                 if(err) throw err;
                 console.table("post update: ",res);
+                that.managerIn();
             }
         )
+    }else{
+        that.customerIn();
     }
-    // work.byeBye();
 }
 
 Work.prototype.restock = function(item_id,qty){
+    var that = this;
     connection.query(
         "SELECT * FROM products WHERE ?",
         {
@@ -355,7 +316,7 @@ Work.prototype.restock = function(item_id,qty){
                 {stock_quantity: newQty},
                 {item_id: item_id}
             ];
-            work.theUpdator(updateArray,true);
+            that.theUpdator(updateArray,"manager");
         }
     )
 }
@@ -365,21 +326,30 @@ Work.prototype.low = function(){
         "SELECT * FROM products WHERE stock_quantity < 100",function(err,res){
             if(err) throw err;
             console.table(res);
-        }
-    )
+        })
+        this.managerIn();
 }
 
-Work.prototype.checkOut = function(){
-    console.log(`your shopping cart:\n  ${shoppingCart}\n total: ${shoppingCart.totalPrice}`)
-    work.goingIn = false;
-    work.byeBye();
-}
-Work.prototype.salesTotals = function(){
-
-}
+// Work.prototype.checkOut = function(){
+//     console.log(`your shopping cart:\n  ${shoppingCart.productsArray}\n total: ${shoppingCart.totalPrice}`)
+//     inquirer.prompt([{
+//         name: "yorn",
+//         type: "confirm",
+//         message: "confirm your purchase"
+//     }]).then(function(yorn){
+//         var yorn = yorn.yorn;
+//         if(yorn){
+//             that.theUpdator();
+//             this.byeBye();
+            
+//             console.log("now gimme my money and get outa here!");
+//         }
+//     })
+// }
 
 Work.prototype.managerIn = function(){
-    connect();
+    var that = this;
+    console.log('\033[2J');
     inquirer.prompt([{
         name: "choice",
         type: "list",
@@ -389,66 +359,73 @@ Work.prototype.managerIn = function(){
         choice = choice.choice;
         switch(choice){
             case choice = "create":
-                work.create();
+                that.create();
                 break;
             case choice = "read":
-                work.readAll("manager");
+                that.readAll("manager");
                 break;
             case choice = "check low inventory":
-                work.low();
+                that.low();
                 break;
             case choice = "log out":
-                // work.byeBye();
+                that.byeBye();
         }
     })
 }
 
 Work.prototype.customerIn = function(){
-    connect();
+    var that = this;
+    console.log('\033[2J');
     inquirer.prompt([{
         name: "type",
         type: "list",
-        choices: ["search by department","browse everything","check out"],
+        choices: ["search by department","browse everything","shopping cart"],
         message: "how would you like to see it?"
-    }]).then(function(type){
+    }])
+    .then(function(type){
         var type = type.type;
         console.log("type: ",type);
         switch(type){
-            case type = "search by department":
-                work.read();
+            case "search by department":
+                that.read();
                 break;
-            case type = "browse everything":
-                work.readAll("customer");
+            case "browse everything":
+                that.readAll("customer");
                 break;
-            case type = "check out":
-                work.checkOut();
+            case "shopping cart":
+                shoppingCart.showOff();
+                // console.log("post showoff pre customerIn");
+                // that.customerIn();
         }
     })
 };
 
 Work.prototype.supervisorIn = function(){
-    connect();
+    var that = this;
+    console.log('\033[2J');
     inquirer.prompt([{
-        name: "action",
+        name: "act",
         type: "list",
         choices: ["browse inventory","check sales"],
         message: "what would you like to do?"
-    }]).then(function(action){
-        var action = action.action;
-        if(action==="browse inventory"){
-            work.readAll("supervisor");
+    }]).then(function(act){
+        var act = act.act;
+        if(act==="browse inventory"){
+            that.readAll("supervisor");
         }else{
-            work.salesTotals();
+            inquirer.prompt([{
+                name: "dept",
+                type: "list",
+                choices: departmentNames,
+                message: "which department would you like to see?"
+            }]).then(function(dept){
+                var dept = dept.dept;
+                console.log(dept);
+                sales.sales(dept);
+            })
         }
     })
 }
-
-
-
-
-
-
-
 
 
 module.exports = Work;
