@@ -17,6 +17,7 @@ var ShoppingCart = function(){
     this.totalPrice = 0;
     this.productsArray = [];
     this.idArray = [];
+    this.finished = false;
 }
 
 ShoppingCart.prototype.totals = function(){
@@ -28,7 +29,6 @@ ShoppingCart.prototype.totals = function(){
     return this.totalPrice;
 }
 
-
 ShoppingCart.prototype.addTo = function(purchase,id){
     console.log("id: ",id);
     purchase.total = purchase.qty * purchase.price;
@@ -37,14 +37,15 @@ ShoppingCart.prototype.addTo = function(purchase,id){
     console.log("id array: ",this.idArray);
 }
 
-ShoppingCart.prototype.showOff = function(){
+ShoppingCart.prototype.showOff = function(that){
+    if(this.productsArray.length===0){
+        that.customerIn("\n*******************************************\nThere's nothing in your cart yet\n*******************************************\n\n");
+    }
     var displayProducts = ["check out","keep shopping"];
     for(i=0; i<this.productsArray.length; i++){
         displayProducts.push(this.productsArray[i].product_name + "; price: $" + this.productsArray[i].price + " * qty: "+ this.productsArray[i].qty + "; total: $" + this.productsArray[i].price * this.productsArray[i].qty);
     }
     var arrayItems = this.productsArray;
-    for(i=0; i<arrayItems.length; i++){
-    }
     inquirer.prompt([{
         name: "removal",
         type: "checkbox",
@@ -54,22 +55,23 @@ ShoppingCart.prototype.showOff = function(){
         var removal = removal.removal;
         switch(removal[0]){
             case "check out":
-                this.checkOut();
+                this.checkOut(that);
                 break;
             case "keep shopping":
-                break;
+                that.customerIn(console.log('\033[2J',),"\n*****************************\nwhat else would you like to look at?\n*****************************\n");
+                return;
             default:
                 for(i=0; i<removal.length; i++){
                     var index = this.productsArray.indexOf(removal)
                     this.productsArray.splice(index,1);
                     this.idArray.splice(index,1);
                 }
-                this.showOff();
+                this.showOff(that);
         }
     }.bind(this))
 }
 
-ShoppingCart.prototype.checkOut = function(){
+ShoppingCart.prototype.checkOut = function(these){
     var that = this;
     console.table("checkout cart items: ",that.productsArray);
     that.totals();
@@ -80,34 +82,25 @@ ShoppingCart.prototype.checkOut = function(){
     }]).then(function(yorn){
         var yorn = yorn.yorn;
         if(yorn){
-            for(i=0; i<that.productsArray.length; i++){
+            for(let i=0; i<that.productsArray.length; i++){
                 var checkOutQty = that.productsArray[i].qty;
                 var checkOutId = that.idArray[i];
-                console.log("checkOutId before getQty: ",checkOutId);
                 var passObject1 = {
                     item_id: that.idArray[i]
                 }
-            getQty(checkOutId,checkOutQty,i);
+                getQty(checkOutId,checkOutQty,i);
                 function getQty(checkOutId,checkOutQty,index){
-                    console.log("getQty index: ",index);
-                    console.log("getQty checkOutId: ",checkOutId);
-                    console.log("getQty qty: ",checkOutQty);
                     connection.query(
                         "SELECT stock_quantity FROM products WHERE ?",{
                             item_id: checkOutId
                         },function(err,res){
-                            console.log("getQty qty: ",checkOutQty);
                             if(err) throw err;
                             var onHand = res[0].stock_quantity;
-                            console.log("onHand: ",onHand);
                             var newOnHand = onHand - checkOutQty;
-                            console.log("newOnHand: ",newOnHand);
                             var newOnHandObj = {stock_quantity: newOnHand};
                             var passArray = [newOnHandObj];
                             passArray.push(passObject1);
-                            that.theUpdator(passArray);
-                            console.log("checkoutid: ",checkOutId);
-                            console.log("checkoutqty: ",checkOutQty);
+                            that.theUpdator(passArray,these);
                             sales.theUpdator(checkOutId,checkOutQty);
                         }
                     )
@@ -118,7 +111,7 @@ ShoppingCart.prototype.checkOut = function(){
     })
 }
 
-ShoppingCart.prototype.theUpdator = function(updateArray){
+ShoppingCart.prototype.theUpdator = function(updateArray,these){
     connection.query(
         "UPDATE products SET ? WHERE ?",updateArray,
         function(err,res){

@@ -4,9 +4,10 @@ var table = require("console.table");
 var ShoppingCart = require("./shoppingCart");
 var Sales = require("./sales")
 
+
 // *********************************************************************************************************
 // then work on supervisor mode
-// figure out a way to restart when the custoemr wants to keep shopping from the shopping cart menu
+// figure out a way to restart when the custoemr wants to keep shopping from the shopping cart menu seems like a similar thing that we solved last time with that = this
 // *********************************************************************************************************
 
 var connection = mysql.createConnection({
@@ -19,12 +20,13 @@ var connection = mysql.createConnection({
 
 function Work (shoppingCart){
     this.shoppingCart = shoppingCart;
+    this.sales = sales;
 };
 
 var shoppingCart = new ShoppingCart();
 var sales = new Sales();
 
-const departmentNames = ["electronics","collectables","housewares","arts and crafts"];
+const departmentNames = ["abstract","collectables","tangibles","theoreticals\n\n\n"];
 
 
 Work.prototype.byeBye = function(){
@@ -32,6 +34,7 @@ Work.prototype.byeBye = function(){
 }
 
 Work.prototype.create = function(){
+    var that = this;
     inquirer.prompt([{
         name: "name",
         type: "input",
@@ -41,6 +44,10 @@ Work.prototype.create = function(){
         type: "list",
         choices: departmentNames,
         message: "which department?"
+    },{
+        name: "cost",
+        type: "input",
+        message: "what is the unit cost?"
     },{
         name: "price",
         type: "input",
@@ -52,17 +59,19 @@ Work.prototype.create = function(){
     }]).then(function(response){
         var name = response.name;
         var dept = response.dept;
+        var cost = response.cost;
         var price = response.price;
         var qty = response.qty;
         connection.query("INSERT INTO products SET ?", {
             product_name: name,
             department_name: dept,
             price: price,
+            unit_cost: cost,
             stock_quantity: qty
         }, function(err, res){
             if(err) throw err;
-            console.table("your product is hitting store shelves as we speak");
-            this.managerIn();
+            console.log('\033[2J');
+            that.managerIn("your product is hitting store shelves as we speak");
         }.bind(this))
     }.bind(this))
 }
@@ -74,6 +83,7 @@ Work.prototype.readAll = function(credentials){
             if(err) throw err;
             var customerChoices = [];
             var managerChoices = [];
+            var supervisorChoices = [];
             var itemID = [];
             var prices = [];
             var quantities = [];
@@ -87,7 +97,7 @@ Work.prototype.readAll = function(credentials){
                 managerChoices.push(res[i].product_name + ", price: $" + res[i].price + ", quantity: " + res[i].stock_quantity);
             }
             if(credentials==="customer"){
-                console.table("customer view");
+                console.log("customer view");
                 var customerView = {
                     name: "items",
                     type: "list",
@@ -97,7 +107,7 @@ Work.prototype.readAll = function(credentials){
                 view(customerView,credentials);
             }
             if(credentials==="manager"){
-                console.table("manager view");
+                console.log("manager view");
                 var managerView = {
                     name: "items",
                     type: "list",
@@ -107,30 +117,30 @@ Work.prototype.readAll = function(credentials){
                 view(managerView,credentials);
             }
             if(credentials==="supervisor"){
-                console.table("\n***************************\nyou're a supervisor. ooh look at you\n******************************************");
-                that.byeBye();
+                console.log("supervisor view");
+                var supervisorView = {
+                    name: "items",
+                    type: "list",
+                    choices: managerChoices,
+                    message: "which item would you like to view?"
+                }
+                view(supervisorView,credentials);
             }
             function view(questionObject,credentials){
-                
-                console.log("credentials: ",credentials);
                 inquirer.prompt([
                     questionObject
                 ]).then(function(items){
                     var itemIndex = 0;
-                    if(credentials==="manager"){
-                        console.log("item.item",items.items);
-                        itemIndex = managerChoices.indexOf(items.items);
-                    }else{
-                        console.log("item.item",items.items);
+                    if(credentials==="customer"){
                         itemIndex = customerChoices.indexOf(items.items);
+                    }else{
+                        itemIndex = managerChoices.indexOf(items.items);
                     }
+                    console.log("item index: ",itemIndex);
                     // *******************************************************************
                     // CUSTOMER
                     // *******************************************************************
                     if(credentials==="customer"){
-                        console.log("item_id: ",itemID[itemIndex]);
-                        console.log("customer choice: ",customerChoices[itemIndex]);
-                        console.log("manager choice: ",managerChoices[itemIndex]);
                         that.buy(itemID[itemIndex]);
                     }
                     // *******************************************************************
@@ -146,32 +156,34 @@ Work.prototype.readAll = function(credentials){
                         }]).then(function(option){
                             var option = option.option;
                             if(option==="delete"){
+                                console.log("before del: ",itemID[itemIndex]);
                                 that.del(itemID[itemIndex]);
+                            }else{
+                                inquirer.prompt([{
+                                    name: "newValue",
+                                    type: "input",
+                                    message: "new value: "
+                                }]).then(function(newValue){
+                                    var newValue = newValue.newValue;
+                                    if(option === "price"){
+                                        updateArray.push(
+                                            {price: newValue},
+                                            {item_id : itemID[itemIndex]}
+                                            );
+                                        that.theUpdator(updateArray,"manager");
+                                    }else{
+                                        console.table("time to restock");
+                                        that.restock(itemID[itemIndex],newValue);
+                                    }
+                                }.bind(this))
                             }
-                            inquirer.prompt([{
-                                name: "newValue",
-                                type: "input",
-                                message: "new value: "
-                            }]).then(function(newValue){
-                                var newValue = newValue.newValue;
-                                if(option === "price"){
-                                    updateArray.push(
-                                        {price: newValue},
-                                        {item_id : itemID[itemIndex]}
-                                        );
-                                    that.theUpdator(updateArray,"manager");
-                                }else{
-                                    console.table("time to restock");
-                                    that.restock(itemID[itemIndex],newValue);
-                                }
-                            }.bind(this))
                         }.bind(this))
                     }
                     // *******************************************************************
                     // SUPERVISOR
                     // *******************************************************************
                     if(credentials==="supervisor"){
-                        console.table(" you're a supervisor. super you");
+                        sales.unitSales(itemID[itemIndex],that);
                     }
                 }.bind(this))
             }
@@ -203,7 +215,7 @@ Work.prototype.read = function(){
                     name: "items",
                     type: "list",
                     choices: choices,
-                    message: "what would you like to buy?"
+                    message: "what would you like to buy?\n"
                 }]).then(function(items){
                     var items = items.items;
                     var searchNameIndex = choices.indexOf(items);
@@ -214,6 +226,7 @@ Work.prototype.read = function(){
 }
 
 Work.prototype.del = function(itemID){
+    var that = this;
     inquirer.prompt([{
         name: "yORn",
         type: "confirm",
@@ -221,25 +234,25 @@ Work.prototype.del = function(itemID){
     }]).then(function(yORn){
         yORn = yORn.yORn;
         if(yORn){
+            console.log("itemID in delete: ",itemID);
             var getOut = {item_id: itemID};
             connection.query(
                 "DELETE FROM products WHERE ?",getOut,
                 function(err,res){
                     if(err) throw err;
-                    console.table("it's gone. don't try to get it back")
-                    that.managerIn();
+                    console.log("del res: ",res);
+                    console.log('\033[2J');
+                    that.managerIn("\n********************************\nit's gone. and you're gonna have to live with that\n********************************\n");
                 }.bind(this))
             }else{
-                console.table("Which one is it? sheesh!");
-                that.managerIn();
-
+                console.log('\033[2J');
+                that.managerIn("\n********************************\nWhich one is it? sheesh!\n********************************\n");
         }
     }.bind(this))
 }
 
 Work.prototype.buy = function(item){
     var that = this;
-    console.log("buy item: ",item);
     inquirer.prompt([{
         name: "qty",
         type: "input",
@@ -252,6 +265,7 @@ Work.prototype.buy = function(item){
             },
             function(err,res){
                 if(err) throw err;
+                // print the transaction
                 console.table(`${res[0].product_name} \n     ${qty} * $${res[0].price} = $${res[0].price * qty}`);
                 inquirer.prompt([{
                     name: "yORn",
@@ -260,7 +274,6 @@ Work.prototype.buy = function(item){
                 }]).then(function(yORn){
                     var yORn = yORn.yORn;
                     if(yORn){
-                        console.log("item id: ",res[0].item_id);
                         var shoppingCartObject = {};
                         shoppingCartObject.qty = qty;
                         shoppingCartObject.price = res[0].price;
@@ -270,19 +283,19 @@ Work.prototype.buy = function(item){
                                 item_id: res[0].item_id
                             },function(err,ret){
                                 if(err) throw err;
-                                console.log("line 272: ",ret[0].stock_quantity);
                                 if(ret[0].stock_quantity-qty < 0){
+                                    console.log('\033[2J',),
                                     that.customerIn("\n*****************************\nsorry. running low right now.\nwe're down to our last " + ret[0].stock_quantity + "\n*****************************\n");
                                 }else{
-                                    shoppingCart.addTo(shoppingCartObject,res[0].item_id);
-                                    console.log("added to your shopping cart");
-                                    that.customerIn("\n*****************************\nwhat else would you like to look at?\n*****************************\n");
+                                    shoppingCart.addTo(shoppingCartObject,res[0].item_id,that);
+                                    console.log('\033[2J');
+                                    that.customerIn("\nadded to your shopping cart\n\n*****************************\nwhat else would you like to look at?\n*****************************\n");
                                 }
                             }.bind(this)
                         )
                     }else{
-                        console.table("maybe next time");
-                        that.customerIn();
+                        console.log('\033[2J',);
+                        that.customerIn("maybe next time");
                     }
                 }.bind(this))
             }.bind(this));
@@ -303,11 +316,9 @@ Work.prototype.theUpdator = function(updateArray,credentials){
             "SELECT * FROM products WHERE ?",updateArray[1],function(err,res){
                 if(err) throw err;
                 console.table("post update: ",res);
-                that.managerIn();
+                that.managerIn("");
             }.bind(this)
         )
-    }else{
-        that.customerIn();
     }
 }
 
@@ -320,8 +331,9 @@ Work.prototype.restock = function(item_id,qty){
         },
         function(err,res){
             if(err) throw err;
+            console.log('\033[2J')
+            console.table("restock res: ",res);
             var currentQty = res[0].stock_quantity;
-            console.table("current inventory: ",currentQty);
             var newQty = parseInt(currentQty) + parseInt(qty);
             console.table("new inventory: ",newQty);
             console.table("item id: ", item_id);
@@ -340,29 +352,43 @@ Work.prototype.low = function(){
             if(err) throw err;
             console.table(res);
         })
-        this.managerIn();
+        console.log('\033[2J',);
+        this.managerIn("");
 }
 
-// Work.prototype.checkOut = function(){
-//     console.log(`your shopping cart:\n  ${shoppingCart.productsArray}\n total: ${shoppingCart.totalPrice}`)
-//     inquirer.prompt([{
-//         name: "yorn",
-//         type: "confirm",
-//         message: "confirm your purchase"
-//     }]).then(function(yorn){
-//         var yorn = yorn.yorn;
-//         if(yorn){
-//             that.theUpdator();
-//             this.byeBye();
-            
-//             console.log("now gimme my money and get outa here!");
-//         }
-//     })
-// }
-
-Work.prototype.managerIn = function(){
+Work.prototype.customerIn = function(message){
     var that = this;
-    console.log('\033[2J');
+    if(message){
+        console.log(message);
+    }
+    inquirer.prompt([{
+        name: "type",
+        type: "list",
+        choices: ["search by department","browse everything","shopping cart","log out\n\n\n"],
+        message: "what would you like to see?\n"
+    }])
+    .then(function(type){
+        var type = type.type;
+        switch(type){
+            case "search by department":
+                that.read();
+                break;
+            case "browse everything":
+                that.readAll("customer");
+                break;
+            case "shopping cart":
+                shoppingCart.showOff(that);
+            case "log out\n\n\n":
+                that.byeBye();
+        }
+    }.bind(this))
+};
+
+Work.prototype.managerIn = function(message){
+    var that = this;
+    if(message){
+        console.log(message);
+    }
     inquirer.prompt([{
         name: "choice",
         type: "list",
@@ -386,42 +412,15 @@ Work.prototype.managerIn = function(){
     }.bind(this))
 }
 
-Work.prototype.customerIn = function(message){
-    var that = this;
-    console.log('\033[2J');
-    console.log(message);
-    inquirer.prompt([{
-        name: "type",
-        type: "list",
-        choices: ["search by department","browse everything","shopping cart"],
-        message: "how would you like to see it?"
-    }])
-    .then(function(type){
-        var type = type.type;
-        console.log("type: ",type);
-        switch(type){
-            case "search by department":
-                that.read();
-                break;
-            case "browse everything":
-                that.readAll("customer");
-                break;
-            case "shopping cart":
-                shoppingCart.showOff();
-                // console.log("post showoff pre customerIn");
-                // that.customerIn();
-        }
-    }.bind(this))
-};
-
 Work.prototype.supervisorIn = function(message){
     var that = this;
-    console.log('\033[2J');
-    console.log(message)
+    if(message){
+        console.log(message);
+    }
     inquirer.prompt([{
         name: "act",
         type: "list",
-        choices: ["browse inventory","check sales by department","check total sales"],
+        choices: ["browse inventory","check sales by department","check total sales","log out\n\n\n"],
         message: "what would you like to do?"
     }]).then(function(act){
         var act = act.act;
@@ -437,13 +436,17 @@ Work.prototype.supervisorIn = function(message){
                     message: "which department would you like to see?"
                 }]).then(function(dept){
                     var dept = dept.dept;
-                    console.log(dept);
-                    sales.sales(dept);
-                    that.supervisorIn("\n*****************************\nwhat would you like to do now?\n*****************************\n");
+                    console.log("dept: ",dept);
+                    sales.deptSales(dept,that);
                 })
                 break;
-            default:
-                sales.allSales("\n*****************************\nwhat would you like to do now?\n*****************************\n");
+            case "log out\n\n\n":
+                console.log('\033[2J',)
+                that.byeBye();
+                break;
+            case "check total sales":
+                sales.allSales(that);
+                break;
         }
     }.bind(this))
 }

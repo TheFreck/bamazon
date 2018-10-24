@@ -19,6 +19,7 @@
   "homepage": "https://github.com/TheFreck/bamazon#readme",
   "dependencies": {
     "console.table": "^0.10.0",
+    "figlet": "^1.2.1",
     "inquirer": "^6.2.0",
     "mysql": "^2.16.0"
   }

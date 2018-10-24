@@ -1,5 +1,7 @@
 var Work = require("./underTheHood");
 var mysql = require("mysql");
+var figlet = require("figlet");
+
 
 var connection = mysql.createConnection({
     host: "localhost",
@@ -12,5 +14,10 @@ var connection = mysql.createConnection({
 var work = new Work();
 connection.connect(function(err){
     if(err) throw err;
+    console.log('\033[2J');
+    figlet("Bamazon Beyond Com",function(err,data){
+        if(err) throw err;
+        console.log(data);
+    })
     work.customerIn()
 })
