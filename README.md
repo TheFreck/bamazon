@@ -8,3 +8,6 @@ It is the manager's responsibility to keep the shelves stocked. The manager can 
 
 ## Bamazon Supervisor
 The supervisor has the ability to track sales at the product level by browsing the inventory and selecting the product to view sales data. The supervisor also has the ability to view sales at the department level and the store levels.
+
+### Magic in action
+https://drive.google.com/file/d/12aLsWX1h4YB--x4G2_UtLcNItdN9OIC2/view
